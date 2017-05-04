@@ -218,7 +218,7 @@ foreach my $contig_id (sort {sort_contigs($a, $b, $sort_map)} keys %ids) {
 	print "$gid\t$new_id\n";
 
 	#now create IDs for mRNAs of the gene
-	foreach my $mRNA (sort {$a->{start} <=> $b->{start} || $a->{end} <=> $b->{end}} values %{$gene->{mRNAs}}){
+	foreach my $mRNA (sort {$b->{start} <=> $a->{start} || $b->{end} <=> $a->{end}} values %{$gene->{mRNAs}}){
 	    my $tid = $mRNA->{ID};
 	    my $parent = $mRNA->{parent};
 	    my $tcount;
