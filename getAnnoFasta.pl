@@ -7,6 +7,11 @@
 
 use strict;
 use Getopt::Long;
+### Capital
+#awk 'BEGIN{RS=">";FS="\n"}NR>1{printf ">%s\n",$1;for (i=2;i<=NF;i++) {gsub(/c/,"C",$i);gsub(/a/,"A",$i);gsub(/g/,"G",$i);gsub(/t/,"T",$i); printf "%s\n",$i}}'
+###
+
+
 
 my $usage = "getAnnoFasta.pl augustus.gff\n";
 $usage .= "   Makes a fasta file with protein sequences (augustus.aa)\n";
