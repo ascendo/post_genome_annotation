@@ -1,0 +1,140 @@
+’ll answer the best I can.  There is also a MAKER wiki here http://gmod.org/wiki/MAKER_Tutorial that might help on some things.
+
+In the option:
+est: #non-redundant set of assembled ESTs in fasta format (classic EST analysis)
+
+I presume assumes ESTs whose sequences have been processed so as to have both their polyA tails and vector sequences removed. Right?
+
+Also, I presume that these ESTs have not been necessarily pre-assembled into mini-contigs.
+
+You are correct, ESTs should have been processed to have these types of sequences removed.  Also MAKER expects either longer Sanger type EST sequence or assembled short reads here as apposed to unassembled raw mRNA-seq type reads.  This is because the reads are being aligned with BLASTN and then polished around splice sites with Exonerate.  What MAKER is looking for is the location of introns and UTR, so longer reads better map across the splice sites.  To use short reads from mRNA-seq experiments, you can process those reads using programs like TopHat, Cufflinks, etc. and then pass those data to MAKER in GFF3 format with the est_gff option in the maker_opt.ctl file.  There are scripts that come with MAKER called tophat2gff3 and cufflinks2gff3 that help with this.  I have users process the short reads outside of MAKER because (1) It take forever to align short reads, and (2) The programs to align and process short reads are advancing and changing so much it’s easier (at least for now) to just to let the user pick whatever program they want and then convert the program’s output into GFF3 format.
+
+
+In the options:
+repeat_protein: #a database of transposable element proteins in fasta format
+
+Where can I find a database of transpposable elements for E. coli and bacteria in general? And is there such a thing for eukaryotic organisms?
+
+For prokaryotes, repeat masking is turned off automatically by MAKER.  If you supply a file or repeat masking option, MAKER will throw a warning and letting you know that the repeat masking options will be ignored for prokaryotic organisms.  For Eukaryotes MAKER comes bundled with the RepeatRunner TE database which was developed as part of Mark’s previous work.  It helps to find divergent repeats that can be missed by RepeatMasker.  Whenever you generate new control files this option always gets filled in by default, but the user can always provide their own database if they decide to try and make one or delete the value and then this step will be skipped.
+
+
+rmlib: #an organism specific repeat library in fasta format
+
+Is this option the right place where to put the file output from RepeatModeler?
+For Prokaryotic and eukaryotic organisms?
+
+Correct.  FASTA output from programs like Piler or RepeatModeler goes here.
+
+
+Where can I find the description of the prediction methods referenced in:
+
+predictor: #prediction methods for annotations (seperate multiple values by ',')
+
+And by the way...the word "seperate" is misspelled all over your documentation...please correct that
+
+Very very brief description here --> http://gmod.org/wiki/MAKER_Tutorial#Gene_Prediction_Options .  This is a wiki page so I try and get back to it every so often to improve the documentation.  Basically ‘snap’ means to run the ab initio gene prediction program SNAP, ‘augustus’ means to run the program Augustus, and then there are some internal MAKER specific methods like est2genome or model_gff.  I guess a nice addition to the wiki would be an overview on how these programs perform relative to each other.  SNAP is easy to train and gives medium performance on genomes with long introns, but performs well on short intron genomes.  Augustus is very hard to train but has the highest quality models on genomes with long introns.  GeneMark is the easiest to train, but really only works well for genomes with short introns.  FGENESH performs similar to Augustus but you have to buy it and pay someone to train it for you.  For prokaryotes the only natively supported predictor is GeneMarkS (still specified as just ‘genemark’ in the control files, MAKER knows which GeneMark to use based on the organism type).  Other predictors have to have their output converted to GFF3 and passed in using the pred_gff option.  In a general sense, for most newly sequenced genomes, this is what I find --> in order of quality for long intron genomes: augustus = fgenesh > snap > genemark.  For short intron genomes : augustus  = fgenesh = genemark = snap.  For ease of training:  genemark  > snap > augustus > fgenesh.  Note that these programs must be trained outside of MAKER, although draft annotations from MAKER can become the training set ( http://gmod.org/wiki/MAKER_Tutorial#Training_ab_initio_Gene_Predictors ). 
+
+Also thanks for the spelling correction.  Anecdotally ‘separate’ is the second most commonly misspelled word on the internet (I googled it :-)
+
+Regarding;
+
+unmask:0 #Also run ab-initio methods on unmasked sequence, 1 = yes, 0 = no
+==>so the default is no, but if I say yes, do I have to provide a training set? And where do I put it?
+
+This will just cause SNAP, Augustus, etc. to be run on the unmasked genome as well as the masked genome (same HMM/training file).  It helps in picking up missing exons caused by overmasking or weird gene predictor behavior.  These unmasked models compete against the masked models for best evidence overlap (based on AED which I explain below).  Some gene predictors can perform better on certain genomes without masking (based on my experience with a weird Oomycete genome).
+
+snaphmm: #SNAP HMM
+model ==>not sure how to proceed here 
+
+SNAP has to be trained first.  ( http://gmod.org/wiki/MAKER_Tutorial#Training_ab_initio_Gene_Predictors )
+
+gmhmm: #GeneMark HMM model
+model ==>not sure how to proceed here. I installed GeneMark but do I need to provide something extra?
+
+GeneMark self-trains.  Run once on the genome outside of MAKER.  It produces a file named something like es.mod (you can change the name when it finishes).  This is the file to provide MAKER.
+
+augustus_species: #Augustus gene prediction model
+model ==>not sure how to proceed here . Do I need to download something extra in here or just installing Augustus makes the trick?
+
+Augustus comes with documentation on how to train it.  It’s a nightmare, but I have some code that should make this easier that I will be bundling with one of the upcoming MAKER releases.  Augustus works really well, so you will often be ok to just pick a related species in the same phylum. Type ‘augustus --species=help’ to get a list of available species.
+
+model_gff:/Users/Shared/genomics/group00/Ecoli_MG1655/Ecoli_MG1655.gff #gene models from an external gff3 file (annotation pass-through)
+model ==>I placed the gff file I extracted from the genome GeneBank file. Is this correct??
+
+As long as it is correct GFF3 format ( http://www.sequenceontology.org/gff3.shtml ) from the same assembly as the one being annotated by MAKER (i.e. same contig names, starts, ends, etc.).  MAKER expects to find the gene/mRNA/exon/CDS features in the GFF3 file with correct parent child relationships, i.e. exon is a child of mRNA and not gene as sometimes occurred in old wormbase GFF3 files.
+
+
+Regarding:
+evaluate:0 #run EVALUATOR on all annotations, 1 = yes, 0 = no
+==>What happens when you say Yes?
+
+It may just fail outright on some genes (better to leave it off), but when it works this provides basepair by basepair confidence values and other statistics for each gene model.  It lets you review how much confidence you have on sub-features of a model, i.e. if I have more confidence in this splice site or if the first half of the gene is well supported but the terminal end is not.  EVALUATOR is a program under development by another member of our lab.
+
+max_dna_len:100000 #length for dividing up contigs into chunks (larger values increase memory usage)
+==>Are you dividing into overlapping fragments??
+
+Non-overlapping fragments, but there is a cleanup step where the junction is processed and corrected.  This really affects only the BLAST step of MAKER.
+
+min_protein:0 #all gene annotations must produce a protein of at least this many amino acids in length
+==>for eukaryotic organisms is this the default? (I thought it was 100...)
+
+SwissProt has protein with less than 10 amino acids in their database, and gene predictors sometime produce weird short predictions, but yes I recommend setting this above 0.  The value may be organism specific, so I don’t set this for the user since anything I choose would just be arbitrary, so I let the user review MAKER’s output and then set this themselves if they wish.  The smallest length proteins in well annotated and curated organisms is ~30. 
+
+AED_threshold:1 #Maximum Annotation Edit Distance allowed for annotations (bound by 0 and 1)
+==>what is this?
+
+Annotation Edit Distance ( http://www.biomedcentral.com/1471-2105/10/67 ).  It is a modified sensitivity/specificity measurement.  It was proposed to calculate the overlap between the annotations for two different releases of a genome.  I modified it to calculate the overlap between an annotation and the evidence (no overlap=1, perfect match=0).  You can use this to require a minimum level of evidence support for annotations.  It is also used to pick the best model when their are multiple alternate gene models for the same locus.
+
+single_exon:1 #consider single exon EST evidence when generating annotations, 1 = yes, 0 = no
+==>I assume this has to be 1 for prokaryotic organisms, but what happens when you say 1?
+
+This is automatically set to 1 for prokaryotes (you don’t get a choice).  For Eukaryotes, this causes MAKER to consider single-exon ESTs when sending hints to gene predictors (location of exons/instrons), by default only spliced ESTs are used since single exon ESTs can be genomic contamination and because you cannot always correctly place single exon ESTs on the right strand.
+
+keep_preds:0 #Add non-overlapping ab-inito gene prediction to final annotation set, 1 = yes, 0 = no
+==>Has anyone compared what happens when you activate this?? How much garbage is annotated??
+
+Tons of garbage comes through.  But this can be useful under some weird use-case scenarios.  I’ve used it to force manually selected predictions that don’t overlap current models to be annotated (pred_gff pass-through).  There was no protein homology evidence or EST support for the models, but I did find evidence for known protein domains based on external analysis, so I forced these models into the final set.
+
+Finally, If I pre-cluster reads from a NGS RNA seq analysis and feed the file to MAKER I am in business regarding gene model, right?
+
+I would recommend TopHat and Cufflinks to process these for the ‘est_gff’ option, or Oases to assemble what you can for the ‘est’ option.  You can try one, the other, or both.   Assembly better picks up small introns as cufflinks tends to merge across these, but cufflinks allows you to recover a larger percentage of the transcriptome.
+
+
+
+Thanks,
+Carson
+
+
+
+
+On Tue, Sep 21, 2010 at 09:55, Carson Holt <carson.holt@genetics.utah.edu> wrote:
+I’m glad it is working now.  When WU-Blast became AB-Blast, academic users could still use cross_match, but it was just excruciatingly slow, so RMBlast solved problems related to having another free alternative and having something faster.  The new version of RepeatMasker also has a free minimal repeat library which solved issues related to the licensing and distribution of RepBase.
+
+One trick I also do when teaching classes using MAKER is to run a MAKER job and then delete all GFF3 and FASTA files in the output directory while leaving “theVoid” directory intact.  Then I copy the entire output directory to wherever the users will be running their job.  What happens is when the user launches MAKER, the results from the programs RepeatMasker, BLAST, Exonerate, SNAP, and Augustus will be retrieved from “theVoid” rather than being regenerated, so the user gets the feel of running MAKER but in a fraction of the time (kind of like a cooking show).  This allows you to do things like use larger datasets in class.
+
+Thanks,
+Carson
+
+
+On 9/21/10 7:32 AM, "Rodolfo Aramayo" <raramayo@tamu.edu <http://raramayo@tamu.edu> > wrote:
+
+Hi Mark, Carson,
+
+It is me again.
+
+And the difference is like night and day.
+
+Running Maker with rmBlast fro RepeatMasker took less than one minute versus ~ 25 min
+
+I believe, or I hope at leats we now have things under control
+
+I will be in touch..,;)
+
+Again thanks for your help and keep up the good work
+
+Rodolfo
+
+Rodolfo Aramayo, PhD
+Associate Professor of Genetics and Biology
+Texas A&M University
+Section Editor Genomics and genetics, PLoSONE
